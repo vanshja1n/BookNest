@@ -16,7 +16,7 @@ export default function Home() {
   useEffect(() => {
     if (status === 'loading') return;
     checkAuth();
-  }, [session, status]);
+  }, [status]);
 
   const checkAuth = async () => {
     try {

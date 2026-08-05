@@ -8,7 +8,7 @@ import Navbar from '@/components/Navbar';
 
 export default function Leaderboard() {
   const { user, loading, logout } = useAuth();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [leaderboard, setLeaderboard] = useState([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(true);
   const [activeTab, setActiveTab] = useState('points');
@@ -24,7 +24,16 @@ export default function Leaderboard() {
     if (user || session) {
       fetchLeaderboard();
     }
-  }, [user, session, activeTab]);
+  }, [user?.id, session?.user?.id, activeTab]);
+
+  // Prevent hydration mismatch by handling loading state
+  if (loading || status === 'loading') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   const fetchLeaderboard = async () => {
     try {

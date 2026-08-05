@@ -37,6 +37,7 @@ const bookSchema = new mongoose.Schema({
     required: [true, 'Description is required'],
     maxlength: [1000, 'Description cannot be more than 1000 characters']
   },
+  // IMPORTANT: ownerId must be a MongoDB User._id (ObjectId), NOT a Google OAuth ID
   ownerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Navbar from '@/components/Navbar';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
@@ -9,89 +9,45 @@ import toast from 'react-hot-toast';
 
 export default function MyBooks() {
   const { user, loading, logout, refreshUser } = useAuth();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [books, setBooks] = useState([]);
   const [loadingBooks, setLoadingBooks] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [editingBook, setEditingBook] = useState(null);
   const [editFormData, setEditFormData] = useState({});
+  const hasFetched = useRef(false);
 
-  
+  // Single useEffect to fetch books - prevents infinite loops
   useEffect(() => {
-    const initializeData = async () => {
-      console.log('=== Initializing data ===');
-      console.log('Testing API call...');
-      
-      
-      try {
-        const token = localStorage.getItem('token');
-        console.log('Test token:', token ? 'Found' : 'Not found');
-        
-        if (token) {
-          const testResponse = await fetch('/api/books/my-books', {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-          console.log('Test API response status:', testResponse.status);
-          const testData = await testResponse.json();
-          console.log('Test API data:', testData);
-        } else {
-          console.log('No token found for test API call');
-        }
-      } catch (error) {
-        console.error('Test API error:', error);
-      }
-      
-      await refreshUser();
-      
-      setTimeout(() => {
-        console.log('User after timeout:', user);
-        if (user) {
-          fetchBooks();
-        }
-      }, 1500);
-    };
-    initializeData();
-  }, []);
-
-  
-  
-  
-  
-  
-  
-
-  
-  
-  
-
-  useEffect(() => {
-    if (user) {
-      console.log('User changed, fetching books:', user);
+    if (user && !hasFetched.current) {
+      console.log('=== Fetching books ===');
       console.log('User ID:', user.id);
-      console.log('User books:', user.books);
+      console.log('Is Google User:', user.isGoogleUser);
       fetchBooks();
-    } else {
+      hasFetched.current = true;
+    } else if (!user) {
       console.log('No user, setting empty books');
       setBooks([]);
       setLoadingBooks(false);
+      hasFetched.current = false;
     }
-  }, [user]);
+  }, [user?.id]);
 
-  
-  useEffect(() => {
-    if (session?.user && user?.isGoogleUser) {
-      console.log('Session changed, fetching books:', session.user);
-      fetchBooks();
-    }
-  }, [session, user]);
+  // Prevent hydration mismatch by handling loading state
+  if (loading || status === 'loading') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   const fetchBooks = async () => {
     console.log('=== fetchBooks called ===');
-    console.log('User:', user);
     console.log('User ID:', user?.id);
-    console.log('User books:', user?.books);
     console.log('Is Google User:', user?.isGoogleUser);
     
     try {
@@ -101,11 +57,14 @@ export default function MyBooks() {
         return;
       }
 
+      setLoadingBooks(true);
+
+      let response;
       
-      if (user.isGoogleUser) {
+      if (session?.user) {
         console.log('NextAuth user - fetching books from API');
         try {
-          const response = await fetch('/api/books/my-books');
+          response = await fetch('/api/books/my-books');
           console.log('NextAuth API response status:', response.status);
           
           if (response.ok) {
@@ -113,30 +72,19 @@ export default function MyBooks() {
             console.log('NextAuth API data:', data);
             setBooks(data.books || []);
           } else {
-            
-            console.log('API failed, using session data');
-            const ownedBooks = (user.books || []).filter(book => {
-              console.log('Checking book:', book.title, 'ownerId:', book.ownerId, 'user.id:', user.id);
-              return book.ownerId === user.id;
-            });
-            console.log('Owned books from session:', ownedBooks);
-            setBooks(ownedBooks);
+            console.log('API failed, setting empty books');
+            setBooks([]);
           }
-        } catch (apiError) {
-          console.error('NextAuth API error:', apiError);
-          
-          const ownedBooks = (user.books || []).filter(book => {
-            console.log('Checking book:', book.title, 'ownerId:', book.ownerId, 'user.id:', user.id);
-            return book.ownerId === user.id;
-          });
-          console.log('Owned books from session (fallback):', ownedBooks);
-          setBooks(ownedBooks);
+        } catch (error) {
+          console.error('Error fetching books (NextAuth):', error);
+          toast.error('Failed to fetch books');
+          setBooks([]);
         }
         setLoadingBooks(false);
         return;
       }
 
-      
+      // JWT token fallback
       const token = localStorage.getItem('token');
       console.log('JWT token:', token ? 'Found' : 'Not found');
       if (!token) {
@@ -146,8 +94,8 @@ export default function MyBooks() {
         return;
       }
 
-      console.log('Fetching books from API...');
-      const response = await fetch('/api/books/my-books', {
+      console.log('Fetching books from API with JWT...');
+      response = await fetch('/api/books/my-books', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -170,6 +118,7 @@ export default function MyBooks() {
     } catch (error) {
       console.error('Error fetching books:', error);
       toast.error('Failed to fetch books');
+      setBooks([]);
     } finally {
       setLoadingBooks(false);
     }
@@ -178,10 +127,10 @@ export default function MyBooks() {
   const manualRefresh = async () => {
     setIsRefreshing(true);
     await refreshUser();
+    hasFetched.current = false;
     await fetchBooks();
     setTimeout(() => setIsRefreshing(false), 1000);
   };
-
 
   const handleEdit = (book) => {
     setEditingBook(book);
@@ -191,13 +140,16 @@ export default function MyBooks() {
       genre: book.genre,
       condition: book.condition,
       description: book.description,
-      coverImage: book.coverImage,
-      isbn: book.isbn || '',
-      publishedYear: book.publishedYear || '',
-      language: book.language || 'English',
-      pageCount: book.pageCount || '',
-      tags: book.tags ? book.tags.join(', ') : ''
+      coverImage: book.coverImage
     });
+  };
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
   const handleEditSubmit = async (e) => {
@@ -207,7 +159,6 @@ export default function MyBooks() {
       let response;
       
       if (session?.user) {
-        
         response = await fetch(`/api/books/${editingBook._id}`, {
           method: 'PUT',
           headers: {
@@ -219,7 +170,6 @@ export default function MyBooks() {
           })
         });
       } else {
-        
         const token = localStorage.getItem('token');
         if (!token) {
           toast.error('Please login to edit book');
@@ -242,20 +192,20 @@ export default function MyBooks() {
       if (response.ok) {
         toast.success('Book updated successfully!');
         setEditingBook(null);
-        setEditFormData({});
-        fetchBooks();
+        hasFetched.current = false;
+        await fetchBooks();
       } else {
-        const data = await response.json();
-        toast.error(data.error || 'Failed to update book');
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Failed to update book');
       }
     } catch (error) {
       console.error('Error updating book:', error);
-      toast.error('Failed to update book');
+      toast.error('An error occurred. Please try again.');
     }
   };
 
   const handleDelete = async (bookId) => {
-    if (!window.confirm('Are you sure you want to delete this book? This action cannot be undone.')) {
+    if (!confirm('Are you sure you want to delete this book?')) {
       return;
     }
 
@@ -263,13 +213,11 @@ export default function MyBooks() {
       let response;
       
       if (session?.user) {
-        
         console.log('Deleting book (NextAuth):', bookId);
         response = await fetch(`/api/books/${bookId}`, {
           method: 'DELETE'
         });
       } else {
-        
         const token = localStorage.getItem('token');
         if (!token) {
           toast.error('Please login to delete book');
@@ -292,31 +240,14 @@ export default function MyBooks() {
         throw new Error(errorData.error || 'Failed to delete book');
       }
 
-      const data = await response.json();
-      console.log('Delete success:', data);
       toast.success('Book deleted successfully!');
-      
-      
-      setBooks(books.filter(book => book._id !== bookId));
-      
-      
-      fetchBooks();
+      hasFetched.current = false;
+      await fetchBooks();
     } catch (error) {
       console.error('Error deleting book:', error);
       toast.error('Failed to delete book: ' + error.message);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-          <p className="text-gray-600 text-lg">Loading...</p>
-        </div>
-      </div>
-    );
-  }
 
   if (!user) {
     return (
@@ -333,331 +264,216 @@ export default function MyBooks() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 relative overflow-hidden">
-      {/* Animated Background Elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-pink-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-pulse" style={{ animationDelay: '2s' }}></div>
-        <div className="absolute top-40 left-1/2 w-80 h-80 bg-indigo-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-pulse" style={{ animationDelay: '4s' }}></div>
-      </div>
-
-      {/* Shared Navigation */}
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
       <Navbar />
-
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Enhanced Header */}
-        <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl border border-white/20 p-8 mb-8 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 rounded-2xl"></div>
-          <div className="relative z-10">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-              <div className="mb-4 md:mb-0">
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
-                  📚 My Book Collection
-                </h1>
-                <p className="text-gray-600 text-lg">
-                  Manage your personal library and discover new reading adventures
-                </p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={manualRefresh}
-                  disabled={isRefreshing}
-                  className="px-6 py-3 bg-white/60 backdrop-blur-md text-gray-700 rounded-xl shadow-lg hover:shadow-xl hover:bg-white/80 transition-all duration-300 border border-white/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[120px]"
-                >
-                  {isRefreshing ? (
-                    <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin"></div>
-                      <span>Refreshing...</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center space-x-2">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      <span>Refresh</span>
-                    </div>
-                  )}
-                </button>
-                <Link
-                  href="/add-book"
-                  className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl shadow-lg hover:shadow-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 inline-block text-center"
-                >
-                  + Add New Book
-                </Link>
-              </div>
-            </div>
+      
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">My Books</h1>
+            <p className="text-gray-600">Manage your book collection</p>
+          </div>
+          <div className="flex gap-4">
+            <button
+              onClick={manualRefresh}
+              disabled={isRefreshing}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {isRefreshing ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Refreshing...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh
+                </>
+              )}
+            </button>
+            <Link
+              href="/add-book"
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Book
+            </Link>
           </div>
         </div>
 
-
-        {/* Books Grid */}
         {loadingBooks ? (
-          <div className="text-center py-16">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-            <p className="text-gray-600 text-lg">Loading your books...</p>
+          <div className="flex justify-center items-center py-20">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600"></div>
           </div>
-        ) : books.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        ) : books.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="text-6xl mb-4">📚</div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">No books yet</h2>
+            <p className="text-gray-600 mb-4">Start by adding your first book to the collection!</p>
+            <Link
+              href="/add-book"
+              className="inline-block px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            >
+              Add Your First Book
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {books.map((book) => (
-              <div key={book._id} className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl border border-white/20 overflow-hidden group hover:shadow-2xl transition-all duration-500 transform hover:scale-105">
+              <div key={book._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
                 <div className="relative">
-                  {book.coverImage ? (
-                    <img 
-                      src={book.coverImage} 
-                      alt={book.title}
-                      className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500"
-                    />
-                  ) : (
-                    <div className="w-full h-48 bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center">
-                      <span className="text-6xl">📚</span>
-                    </div>
-                  )}
-                  <div className="absolute top-3 right-3">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium backdrop-blur-md border ${
-                      book.status === 'available' 
-                        ? 'bg-green-100/80 text-green-800 border-green-200'
-                        : 'bg-yellow-100/80 text-yellow-800 border-yellow-200'
-                    }`}>
-                      {book.status === 'available' ? '✅ Available' : '🔄 In Exchange'}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="p-6">
-                  <h3 className="font-bold text-lg text-gray-900 mb-2 line-clamp-2">{book.title}</h3>
-                  <p className="text-gray-600 mb-2">by {book.author}</p>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">
-                      {book.genre}
-                    </span>
-                    <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
-                      {book.condition}
-                    </span>
-                  </div>
-                  
-                  {book.description && (
-                    <p className="text-gray-600 text-sm mb-4 line-clamp-3">{book.description}</p>
-                  )}
-                  
-                  {book.exchangePreference && (
-                    <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <p className="text-blue-800 text-sm">
-                        <span className="font-medium">Looking for:</span> {book.exchangePreference}
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2">
+                  <img
+                    src={book.coverImage}
+                    alt={book.title}
+                    className="w-full h-48 object-cover"
+                  />
+                  <div className="absolute top-2 right-2 flex gap-2">
                     <button
                       onClick={() => handleEdit(book)}
-                      className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-2 px-4 rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 text-sm font-medium"
+                      className="p-2 bg-white rounded-full shadow hover:bg-gray-100"
                     >
-                      ✏️ Edit
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
                     </button>
                     <button
                       onClick={() => handleDelete(book._id)}
-                      className="flex-1 bg-gradient-to-r from-red-500 to-pink-600 text-white py-2 px-4 rounded-lg hover:from-red-600 hover:to-pink-700 transition-all duration-300 transform hover:scale-105 text-sm font-medium"
+                      className="p-2 bg-white rounded-full shadow hover:bg-red-100 text-red-600"
                     >
-                      🗑️ Delete
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
                     </button>
                   </div>
+                </div>
+                <div className="p-4">
+                  <h3 className="font-bold text-gray-900 mb-1 truncate">{book.title}</h3>
+                  <p className="text-sm text-gray-600 mb-2">by {book.author}</p>
+                  <div className="flex gap-2 mb-2">
+                    <span className="text-xs px-2 py-1 bg-indigo-100 text-indigo-800 rounded">{book.genre}</span>
+                    <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded">{book.condition}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 truncate">{book.description}</p>
                 </div>
               </div>
             ))}
           </div>
-        ) : (
-          <div className="text-center py-16">
-            <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl border border-white/20 p-12 mx-auto max-w-md">
-              <div className="text-8xl mb-6">📚</div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-4">No Books Yet</h3>
-              <p className="text-gray-600 mb-4">
-                Start building your collection by adding your first book!
-              </p>
-              <p className="text-sm text-gray-500 mb-8">
-                If you just added a book, try refreshing the page.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button
-                  onClick={manualRefresh}
-                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-all duration-300"
-                >
-                  🔄 Refresh Page
-                </button>
-                <Link
-                  href="/add-book"
-                  className="group relative px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl inline-block"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  <span className="relative flex items-center space-x-2">
-                    <span className="text-xl">📖</span>
-                    <span>Add Your First Book</span>
-                    <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                  </span>
-                </Link>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Edit Book Modal */}
-        {editingBook && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900">Edit Book</h2>
-                  <button
-                    onClick={() => {
-                      setEditingBook(null);
-                      setEditFormData({});
-                    }}
-                    className="text-gray-400 hover:text-gray-600 text-2xl"
-                  >
-                    ×
-                  </button>
-                </div>
-
-                <form onSubmit={handleEditSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Book Title *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={editFormData.title || ''}
-                        onChange={(e) => setEditFormData({...editFormData, title: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder-gray-500"
-                        placeholder="Enter book title"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Author *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={editFormData.author || ''}
-                        onChange={(e) => setEditFormData({...editFormData, author: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder-gray-500"
-                        placeholder="Enter author name"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Genre *
-                      </label>
-                      <select
-                        required
-                        value={editFormData.genre || ''}
-                        onChange={(e) => setEditFormData({...editFormData, genre: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
-                      >
-                        <option value="">Select Genre</option>
-                        <option value="Fiction">Fiction</option>
-                        <option value="Non-Fiction">Non-Fiction</option>
-                        <option value="Mystery">Mystery</option>
-                        <option value="Romance">Romance</option>
-                        <option value="Science Fiction">Science Fiction</option>
-                        <option value="Fantasy">Fantasy</option>
-                        <option value="Thriller">Thriller</option>
-                        <option value="Biography">Biography</option>
-                        <option value="History">History</option>
-                        <option value="Self-Help">Self-Help</option>
-                        <option value="Business">Business</option>
-                        <option value="Health">Health</option>
-                        <option value="Travel">Travel</option>
-                        <option value="Cooking">Cooking</option>
-                        <option value="Art">Art</option>
-                        <option value="Poetry">Poetry</option>
-                        <option value="Drama">Drama</option>
-                        <option value="Comedy">Comedy</option>
-                        <option value="Horror">Horror</option>
-                        <option value="Adventure">Adventure</option>
-                        <option value="Children">Children</option>
-                        <option value="Young Adult">Young Adult</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Condition *
-                      </label>
-                      <select
-                        required
-                        value={editFormData.condition || ''}
-                        onChange={(e) => setEditFormData({...editFormData, condition: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
-                      >
-                        <option value="">Select Condition</option>
-                        <option value="New">New</option>
-                        <option value="Like New">Like New</option>
-                        <option value="Good">Good</option>
-                        <option value="Fair">Fair</option>
-                        <option value="Poor">Poor</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Cover Image URL *
-                    </label>
-                    <input
-                      type="url"
-                      required
-                      value={editFormData.coverImage || ''}
-                      onChange={(e) => setEditFormData({...editFormData, coverImage: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder-gray-500"
-                      placeholder="Enter image URL"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Description *
-                    </label>
-                    <textarea
-                      required
-                      rows={3}
-                      value={editFormData.description || ''}
-                      onChange={(e) => setEditFormData({...editFormData, description: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder-gray-500"
-                      placeholder="Describe the book..."
-                    />
-                  </div>
-
-                  <div className="flex gap-4 pt-4">
-                    <button
-                      type="submit"
-                      className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 px-6 rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 font-medium"
-                    >
-                      Update Book
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingBook(null);
-                        setEditFormData({});
-                      }}
-                      className="flex-1 bg-gray-300 text-gray-700 py-3 px-6 rounded-lg hover:bg-gray-400 transition-all duration-300 font-medium"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
         )}
       </div>
+
+      {editingBook && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-4">Edit Book</h2>
+            <form onSubmit={handleEditSubmit}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                <input
+                  type="text"
+                  name="title"
+                  value={editFormData.title}
+                  onChange={handleEditChange}
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Author</label>
+                <input
+                  type="text"
+                  name="author"
+                  value={editFormData.author}
+                  onChange={handleEditChange}
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Genre</label>
+                <select
+                  name="genre"
+                  value={editFormData.genre}
+                  onChange={handleEditChange}
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                >
+                  <option value="">Select genre</option>
+                  <option value="Fiction">Fiction</option>
+                  <option value="Non-Fiction">Non-Fiction</option>
+                  <option value="Mystery">Mystery</option>
+                  <option value="Romance">Romance</option>
+                  <option value="Science Fiction">Science Fiction</option>
+                  <option value="Fantasy">Fantasy</option>
+                  <option value="Thriller">Thriller</option>
+                  <option value="Biography">Biography</option>
+                  <option value="History">History</option>
+                  <option value="Self-Help">Self-Help</option>
+                  <option value="Business">Business</option>
+                  <option value="Health">Health</option>
+                  <option value="Travel">Travel</option>
+                  <option value="Cooking">Cooking</option>
+                  <option value="Art">Art</option>
+                  <option value="Poetry">Poetry</option>
+                  <option value="Drama">Drama</option>
+                  <option value="Comedy">Comedy</option>
+                  <option value="Horror">Horror</option>
+                  <option value="Adventure">Adventure</option>
+                  <option value="Children">Children</option>
+                  <option value="Young Adult">Young Adult</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Condition</label>
+                <select
+                  name="condition"
+                  value={editFormData.condition}
+                  onChange={handleEditChange}
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                >
+                  <option value="">Select condition</option>
+                  <option value="New">New</option>
+                  <option value="Like New">Like New</option>
+                  <option value="Good">Good</option>
+                  <option value="Fair">Fair</option>
+                  <option value="Poor">Poor</option>
+                </select>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  name="description"
+                  value={editFormData.description}
+                  onChange={handleEditChange}
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  rows="3"
+                  required
+                />
+              </div>
+              <div className="flex gap-4">
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                >
+                  Save Changes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingBook(null)}
+                  className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

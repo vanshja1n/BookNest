@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
+// IMPORTANT: MongoDB automatically creates _id as ObjectId for all documents
+// googleId field stores OAuth provider ID separately to avoid ID confusion
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -25,6 +27,13 @@ const userSchema = new mongoose.Schema({
   isGoogleUser: {
     type: Boolean,
     default: false
+  },
+  // IMPORTANT: googleId stores the OAuth provider ID separately from MongoDB _id
+  // This prevents confusion between OAuth IDs and MongoDB ObjectIds
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true
   },
   location: {
     type: String,

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth-config';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/db';
 import Exchange from '@/models/Exchange';
 import Book from '@/models/Book';
@@ -12,20 +13,31 @@ export async function GET(request, { params }) {
   try {
     await connectDB();
     const session = await getServerSession(authOptions);
-    
     let userId;
     
+    // Handle NextAuth session authentication
     if (session?.user) {
-      console.log('NextAuth session found in GET /api/exchanges/[id]:', session.user.email);
-      const user = await User.findOne({ email: session.user.email });
-      if (!user) {
-        return NextResponse.json(
-          { error: 'User not found' },
-          { status: 404 }
-        );
+      console.log('GET /api/exchanges/[id] - NextAuth session found');
+      console.log('Session user id:', session.user.id);
+      
+      // Use session.user.id directly (MongoDB ObjectId from our fixed auth flow)
+      if (session.user.id && mongoose.Types.ObjectId.isValid(session.user.id)) {
+        userId = session.user.id;
+        console.log('Using session.user.id as userId:', userId);
+      } else {
+        // Fallback to email lookup if ID is invalid
+        const user = await User.findOne({ email: session.user.email });
+        if (!user) {
+          return NextResponse.json(
+            { error: 'User not found' },
+            { status: 404 }
+          );
+        }
+        userId = user._id;
+        console.log('Using email lookup userId:', userId);
       }
-      userId = user._id;
     } else {
+      // Handle JWT token authentication
       const authHeader = request.headers.get('authorization');
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return NextResponse.json(
@@ -46,9 +58,28 @@ export async function GET(request, { params }) {
       }
       
       userId = currentUser.userId;
+      console.log('Using JWT userId:', userId);
+    }
+
+    // Validate ObjectId before proceeding
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.error('Invalid userId format:', userId);
+      return NextResponse.json(
+        { error: 'Invalid user ID format' },
+        { status: 400 }
+      );
     }
 
     const { id } = await params;
+    
+    // Validate exchange ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid exchange ID format' },
+        { status: 400 }
+      );
+    }
+    
     const exchange = await Exchange.findById(id)
       .populate('requesterId', 'name profilePicture rating location')
       .populate('ownerId', 'name profilePicture rating location')
@@ -68,12 +99,15 @@ export async function GET(request, { params }) {
         { status: 403 }
       );
     }
-    return NextResponse.json({ exchange });
+    return NextResponse.json({ 
+      success: true,
+      exchange 
+    });
 
   } catch (error) {
     console.error('Get exchange error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error.message },
       { status: 500 }
     );
   }
@@ -84,22 +118,33 @@ export async function PUT(request, { params }) {
     await connectDB();
     
     const session = await getServerSession(authOptions);
-    
     let userId;
     let currentUser;
     
+    // Handle NextAuth session authentication
     if (session?.user) {
-      console.log('NextAuth session found in PUT /api/exchanges/[id]:', session.user.email);
-      const user = await User.findOne({ email: session.user.email });
-      if (!user) {
-        return NextResponse.json(
-          { error: 'User not found' },
-          { status: 404 }
-        );
+      console.log('PUT /api/exchanges/[id] - NextAuth session found');
+      console.log('Session user id:', session.user.id);
+      
+      // Use session.user.id directly (MongoDB ObjectId from our fixed auth flow)
+      if (session.user.id && mongoose.Types.ObjectId.isValid(session.user.id)) {
+        userId = session.user.id;
+        console.log('Using session.user.id as userId:', userId);
+      } else {
+        // Fallback to email lookup if ID is invalid
+        const user = await User.findOne({ email: session.user.email });
+        if (!user) {
+          return NextResponse.json(
+            { error: 'User not found' },
+            { status: 404 }
+          );
+        }
+        userId = user._id;
+        console.log('Using email lookup userId:', userId);
       }
-      userId = user._id;
-      currentUser = { name: user.name, email: user.email };
+      currentUser = { name: session.user.name || 'User', email: session.user.email || '' };
     } else {
+      // Handle JWT token authentication
       const authHeader = request.headers.get('authorization');
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return NextResponse.json(
@@ -110,19 +155,45 @@ export async function PUT(request, { params }) {
 
       const token = authHeader.substring(7);
       const { verifyToken } = await import('@/lib/auth');
-      currentUser = verifyToken(token);
+      const decoded = verifyToken(token);
       
-      if (!currentUser) {
+      if (!decoded) {
         return NextResponse.json(
           { error: 'Invalid token' },
           { status: 401 }
         );
       }
       
-      userId = currentUser.userId;
+      userId = decoded.userId;
+      const user = await User.findById(userId);
+      if (!user) {
+        return NextResponse.json(
+          { error: 'User not found' },
+          { status: 404 }
+        );
+      }
+      currentUser = { name: user.name || 'User', email: user.email || '' };
+    }
+
+    // Validate ObjectId before proceeding
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.error('Invalid userId format:', userId);
+      return NextResponse.json(
+        { error: 'Invalid user ID format' },
+        { status: 400 }
+      );
     }
 
     const { id } = await params;
+    
+    // Validate exchange ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid exchange ID format' },
+        { status: 400 }
+      );
+    }
+    
     const { action, rating, review } = await request.json();
 
     const exchange = await Exchange.findById(id);
@@ -245,7 +316,7 @@ export async function PUT(request, { params }) {
         if (book) {
           await Book.findByIdAndUpdate(exchange.bookId, { 
             ownerId: exchange.requesterId,
-            status: 'available' 
+            status: 'traded' 
           });
           
           await User.findByIdAndUpdate(exchange.ownerId, {

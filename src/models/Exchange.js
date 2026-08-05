@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+// IMPORTANT: All user references must be MongoDB User._id (ObjectId), NOT OAuth IDs
 const exchangeSchema = new mongoose.Schema({
   requesterId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -21,21 +22,6 @@ const exchangeSchema = new mongoose.Schema({
     enum: ['pending', 'approved', 'completed', 'canceled', 'rejected'],
     default: 'pending'
   },
-  rating: {
-    type: Number,
-    min: 1,
-    max: 5,
-    default: null
-  },
-  review: {
-    type: String,
-    default: ''
-  },
-  ratedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    default: null
-  },
   messages: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Message'
@@ -50,7 +36,7 @@ const exchangeSchema = new mongoose.Schema({
   completionDate: {
     type: Date
   },
-  rating: {
+  ratings: {
     requesterRating: {
       type: Number,
       min: 1,

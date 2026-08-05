@@ -7,15 +7,19 @@ import { useState } from 'react';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  
-  if (!user && !session) {
+  // Prevent hydration mismatch by not rendering conditionally during loading
+  if (status === 'loading') {
     return null;
   }
 
-  
+  // Only hide navbar if not authenticated after loading is complete
+  if (status === 'unauthenticated' && !user) {
+    return null;
+  }
+
   const currentUser = session?.user || user;
 
   const toggleMobileMenu = () => {

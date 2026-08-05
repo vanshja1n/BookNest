@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth-config';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/db';
 import Book from '@/models/Book';
 import User from '@/models/User';
@@ -39,19 +40,31 @@ export async function PUT(request, { params }) {
     await connectDB();
     
     const session = await getServerSession(authOptions);
-    
     let userId;
     
+    // Handle NextAuth session authentication
     if (session?.user) {
-      const user = await User.findOne({ email: session.user.email });
-      if (!user) {
-        return NextResponse.json(
-          { error: 'User not found' },
-          { status: 404 }
-        );
+      console.log('PUT /api/books/[id] - NextAuth session found');
+      console.log('Session user id:', session.user.id);
+      
+      // Use session.user.id directly (MongoDB ObjectId from our fixed auth flow)
+      if (session.user.id && mongoose.Types.ObjectId.isValid(session.user.id)) {
+        userId = session.user.id;
+        console.log('Using session.user.id as userId:', userId);
+      } else {
+        // Fallback to email lookup if ID is invalid
+        const user = await User.findOne({ email: session.user.email });
+        if (!user) {
+          return NextResponse.json(
+            { error: 'User not found' },
+            { status: 404 }
+          );
+        }
+        userId = user._id;
+        console.log('Using email lookup userId:', userId);
       }
-      userId = user._id;
     } else {
+      // Handle JWT token authentication
       const authHeader = request.headers.get('authorization');
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return NextResponse.json(
@@ -72,9 +85,27 @@ export async function PUT(request, { params }) {
       }
       
       userId = currentUser.userId;
+      console.log('Using JWT userId:', userId);
+    }
+
+    // Validate ObjectId before proceeding
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.error('Invalid userId format:', userId);
+      return NextResponse.json(
+        { error: 'Invalid user ID format' },
+        { status: 400 }
+      );
     }
 
     const { id } = await params;
+
+    // Validate book ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid book ID format' },
+        { status: 400 }
+      );
+    }
 
     const book = await Book.findById(id);
     if (!book) {
@@ -104,6 +135,7 @@ export async function PUT(request, { params }) {
     ).populate('ownerId', 'name location profilePicture rating');
 
     return NextResponse.json({
+      success: true,
       message: 'Book updated successfully',
       book: updatedBook
     });
@@ -111,7 +143,7 @@ export async function PUT(request, { params }) {
   } catch (error) {
     console.error('Update book error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error.message },
       { status: 500 }
     );
   }
@@ -122,19 +154,31 @@ export async function DELETE(request, { params }) {
     await connectDB();
 
     const session = await getServerSession(authOptions);
-    
     let userId;
     
+    // Handle NextAuth session authentication
     if (session?.user) {
-      const user = await User.findOne({ email: session.user.email });
-      if (!user) {
-        return NextResponse.json(
-          { error: 'User not found' },
-          { status: 404 }
-        );
+      console.log('DELETE /api/books/[id] - NextAuth session found');
+      console.log('Session user id:', session.user.id);
+      
+      // Use session.user.id directly (MongoDB ObjectId from our fixed auth flow)
+      if (session.user.id && mongoose.Types.ObjectId.isValid(session.user.id)) {
+        userId = session.user.id;
+        console.log('Using session.user.id as userId:', userId);
+      } else {
+        // Fallback to email lookup if ID is invalid
+        const user = await User.findOne({ email: session.user.email });
+        if (!user) {
+          return NextResponse.json(
+            { error: 'User not found' },
+            { status: 404 }
+          );
+        }
+        userId = user._id;
+        console.log('Using email lookup userId:', userId);
       }
-      userId = user._id;
     } else {
+      // Handle JWT token authentication
       const authHeader = request.headers.get('authorization');
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return NextResponse.json(
@@ -155,9 +199,27 @@ export async function DELETE(request, { params }) {
       }
       
       userId = currentUser.userId;
+      console.log('Using JWT userId:', userId);
+    }
+
+    // Validate ObjectId before proceeding
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.error('Invalid userId format:', userId);
+      return NextResponse.json(
+        { error: 'Invalid user ID format' },
+        { status: 400 }
+      );
     }
 
     const { id } = await params;
+
+    // Validate book ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid book ID format' },
+        { status: 400 }
+      );
+    }
 
     const book = await Book.findById(id);
     if (!book) {
@@ -175,13 +237,14 @@ export async function DELETE(request, { params }) {
     await Book.findByIdAndDelete(id);
 
     return NextResponse.json({
+      success: true,
       message: 'Book deleted successfully'
     });
 
   } catch (error) {
     console.error('Delete book error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error.message },
       { status: 500 }
     );
   }

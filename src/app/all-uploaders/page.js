@@ -21,7 +21,7 @@ export default function AllUploadersPage() {
     
     fetchUsers();
     getCurrentUser();
-  }, [session, status]);
+  }, [status]);
 
   useEffect(() => {
     if (searchTerm.trim() === '') {
@@ -114,19 +114,6 @@ export default function AllUploadersPage() {
   const handleUserClick = (userId) => {
     router.push(`/profile/${userId}`);
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-        <Navbar />
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">

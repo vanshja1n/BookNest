@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth-config';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/db';
 import Exchange from '@/models/Exchange';
 import Book from '@/models/Book';
@@ -10,6 +13,32 @@ export async function GET(request) {
   try {
     await connectDB();
     
+    const session = await getServerSession(authOptions);
+    let userId;
+    
+    // Handle NextAuth session authentication
+    if (session?.user) {
+      console.log('GET /api/exchanges - NextAuth session found');
+      console.log('Session user id:', session.user.id);
+      
+      // Use session.user.id directly (MongoDB ObjectId from our fixed auth flow)
+      if (session.user.id && mongoose.Types.ObjectId.isValid(session.user.id)) {
+        userId = session.user.id;
+        console.log('Using session.user.id as userId:', userId);
+      } else {
+        // Fallback to email lookup if ID is invalid
+        const user = await User.findOne({ email: session.user.email });
+        if (!user) {
+          return NextResponse.json(
+            { error: 'User not found' },
+            { status: 404 }
+          );
+        }
+        userId = user._id;
+        console.log('Using email lookup userId:', userId);
+      }
+    } else {
+      // Handle JWT token authentication
       const authHeader = request.headers.get('authorization');
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return NextResponse.json(
@@ -28,12 +57,22 @@ export async function GET(request) {
         );
       }
       
-    const userId = currentUser.userId;
+      userId = currentUser.userId;
+      console.log('Using JWT userId:', userId);
+    }
+
+    // Validate ObjectId before proceeding
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.error('Invalid userId format:', userId);
+      return NextResponse.json(
+        { error: 'Invalid user ID format' },
+        { status: 400 }
+      );
+    }
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'all'; 
     const status = searchParams.get('status') || 'all';
-
 
     let query = {};
 
@@ -58,12 +97,15 @@ export async function GET(request) {
       .populate('bookId', 'title author coverImage')
       .sort({ createdAt: -1 });
 
-    return NextResponse.json({ exchanges });
+    return NextResponse.json({ 
+      success: true,
+      exchanges 
+    });
 
   } catch (error) {
     console.error('Get exchanges error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error.message },
       { status: 500 }
     );
   }
@@ -73,6 +115,35 @@ export async function POST(request) {
   try {
     await connectDB();
     
+    const session = await getServerSession(authOptions);
+    
+    let userId;
+    let currentUser;
+    
+    // Handle NextAuth session authentication
+    if (session?.user) {
+      console.log('POST /api/exchanges - NextAuth session found');
+      console.log('Session user id:', session.user.id);
+      
+      // Use session.user.id directly (MongoDB ObjectId from our fixed auth flow)
+      if (session.user.id && mongoose.Types.ObjectId.isValid(session.user.id)) {
+        userId = session.user.id;
+        console.log('Using session.user.id as userId:', userId);
+      } else {
+        // Fallback to email lookup if ID is invalid
+        const user = await User.findOne({ email: session.user.email });
+        if (!user) {
+          return NextResponse.json(
+            { error: 'User not found' },
+            { status: 404 }
+          );
+        }
+        userId = user._id;
+        console.log('Using email lookup userId:', userId);
+      }
+      currentUser = { name: session.user.name || 'User', email: session.user.email || '' };
+    } else {
+      // Handle JWT token authentication
       const authHeader = request.headers.get('authorization');
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return NextResponse.json(
@@ -82,30 +153,48 @@ export async function POST(request) {
       }
 
       const token = authHeader.substring(7);
-    const decoded = verifyToken(token);
+      const decoded = verifyToken(token);
       
-    if (!decoded) {
+      if (!decoded) {
         return NextResponse.json(
           { error: 'Invalid token' },
           { status: 401 }
         );
       }
       
-    const userId = decoded.userId;
-    const user = await User.findById(userId);
-    if (!user) {
+      userId = decoded.userId;
+      const user = await User.findById(userId);
+      if (!user) {
+        return NextResponse.json(
+          { error: 'User not found' },
+          { status: 404 }
+        );
+      }
+      currentUser = { name: user.name || 'User', email: user.email || '' };
+    }
+
+    // Validate ObjectId before proceeding
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.error('Invalid userId format:', userId);
       return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
+        { error: 'Invalid user ID format' },
+        { status: 400 }
       );
     }
-    const currentUser = { name: user.name, email: user.email };
 
     const { bookId, requestMessage } = await request.json();
 
     if (!bookId) {
       return NextResponse.json(
         { error: 'Book ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate bookId is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(bookId)) {
+      return NextResponse.json(
+        { error: 'Invalid Book ID format' },
         { status: 400 }
       );
     }
@@ -161,7 +250,7 @@ export async function POST(request) {
         await sendEmail(ownerEmail, 'exchangeRequest', [
           requesterName,
           book.title,
-          book.ownerId.name || 'Book Owner'
+          currentUser.name || 'Book Owner'
         ]);
       }
     } catch (emailError) {
@@ -188,6 +277,7 @@ export async function POST(request) {
     ]);
 
     return NextResponse.json({
+      success: true,
       message: 'Exchange request sent successfully',
       exchange
     }, { status: 201 });
@@ -195,7 +285,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('Create exchange error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error.message },
       { status: 500 }
     );
   }

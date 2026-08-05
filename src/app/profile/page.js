@@ -27,7 +27,7 @@ export default function ProfilePage() {
     if (status === 'loading') return; 
     
     fetchUserProfile();
-  }, [session, status]);
+  }, [status]);
 
   const fetchUserProfile = async () => {
     try {

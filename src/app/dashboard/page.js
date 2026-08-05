@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Navbar from '@/components/Navbar';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
@@ -9,17 +9,19 @@ export default function Dashboard() {
   const { user, loading, logout, refreshUser } = useAuth();
   const [books, setBooks] = useState([]);
   const [exchanges, setExchanges] = useState([]);
+  const hasFetched = useRef(false);
 
   useEffect(() => {
-    if (user) {
+    if (user && !hasFetched.current) {
       fetchBooks();
       fetchExchanges();
-    } else {
-      
+      hasFetched.current = true;
+    } else if (!user) {
       setBooks([]);
       setExchanges([]);
+      hasFetched.current = false;
     }
-  }, [user?.id, user?.isGoogleUser]);
+  }, [user?.id]);
 
   
   useEffect(() => {

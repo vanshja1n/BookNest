@@ -11,40 +11,25 @@ export function useAuth() {
 
   useEffect(() => {
     checkAuth();
-  }, [session, status]);
+  }, [status]);
 
   const checkAuth = async () => {
     try {
       
       if (session?.user) {
-        try {
-          const response = await fetch('/api/auth/me', {
-            credentials: 'include'
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            setUser(data.user);
-          } else {
-            
-            setUser({
-              ...session.user,
-              isGoogleUser: true,
-              books: session.user.books || [],
-              exchanges: session.user.exchanges || [],
-              profilePicture: session.user.image
-            });
-          }
-        } catch (error) {
-          
-          setUser({
-            ...session.user,
-            isGoogleUser: true,
-            books: session.user.books || [],
-            exchanges: session.user.exchanges || [],
-            profilePicture: session.user.image
-          });
-        }
+        setUser({
+          id: session.user.id,
+          name: session.user.name,
+          email: session.user.email,
+          isGoogleUser: session.user.isGoogleUser || false,
+          profilePicture: session.user.image,
+          location: session.user.location || '',
+          bio: session.user.bio || '',
+          books: [],
+          exchanges: [],
+          rating: 0,
+          totalExchanges: 0
+        });
         setLoading(false);
         return;
       }

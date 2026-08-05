@@ -7,7 +7,7 @@ import { useSession } from 'next-auth/react';
 import toast from 'react-hot-toast';
 
 export default function Books() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
@@ -37,8 +37,19 @@ export default function Books() {
   const conditions = ['New', 'Like New', 'Good', 'Fair', 'Poor'];
 
   useEffect(() => {
-    fetchBooks();
-  }, [filters, pagination.currentPage]);
+    if (status !== 'loading') {
+      fetchBooks();
+    }
+  }, [status, filters, pagination.currentPage]);
+
+  // Prevent hydration mismatch by handling loading state at return level
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   const fetchBooks = async () => {
     setLoading(true);
@@ -50,12 +61,10 @@ export default function Books() {
         ...filters
       });
 
-      
-      if (session?.user) {
-        
+      // Only add excludeOwner if session has valid MongoDB ObjectId
+      if (session?.user?.id) {
         params.append('excludeOwner', session.user.id);
       } else if (token) {
-        
         try {
           const response = await fetch('/api/auth/me', {
             headers: {
@@ -67,19 +76,27 @@ export default function Books() {
             params.append('excludeOwner', data.user.id);
           }
         } catch (error) {
-          console.error('Error getting user info:', error);
+          console.error('Error fetching user for excludeOwner:', error);
         }
       }
 
-
       const response = await fetch(`/api/books?${params}`);
+      const data = await response.json();
+
       if (response.ok) {
-        const data = await response.json();
-        setBooks(data.books);
-        setPagination(data.pagination);
+        setBooks(data.books || []);
+        setPagination({
+          currentPage: data.currentPage || 1,
+          totalPages: data.totalPages || 1,
+          hasNext: data.hasNext || false,
+          hasPrev: data.hasPrev || false
+        });
+      } else {
+        toast.error(data.error || 'Failed to fetch books');
       }
     } catch (error) {
       console.error('Error fetching books:', error);
+      toast.error('An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -99,7 +116,6 @@ export default function Books() {
       let response;
       
       if (session?.user) {
-        
         console.log('Requesting book (NextAuth):', bookId);
         response = await fetch('/api/exchanges', {
           method: 'POST',
@@ -108,11 +124,10 @@ export default function Books() {
           },
           body: JSON.stringify({
             bookId,
-            requestMessage: 'I would like to exchange this book with you.'
-          }),
+            requestMessage: 'I would like to exchange this book!'
+          })
         });
       } else {
-        
         const token = localStorage.getItem('token');
         if (!token) {
           toast.error('Please login to request a book');
@@ -128,13 +143,14 @@ export default function Books() {
           },
           body: JSON.stringify({
             bookId,
-            requestMessage: 'I would like to exchange this book with you.'
-          }),
+            requestMessage: 'I would like to exchange this book!'
+          })
         });
       }
 
       if (response.ok) {
-        toast.success('Exchange request sent successfully!');
+        toast.success('Book request sent successfully!');
+        await fetchBooks();
       } else {
         const data = await response.json();
         toast.error(data.error || 'Failed to send request');
@@ -189,7 +205,7 @@ export default function Books() {
               <div className="mb-6">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Genre</label>
                 <select
-                  className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm text-gray-900 placeholder-gray-500"
+                  className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm text-gray-900"
                   value={filters.genre}
                   onChange={(e) => handleFilterChange('genre', e.target.value)}
                 >
@@ -204,7 +220,7 @@ export default function Books() {
               <div className="mb-6">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Condition</label>
                 <select
-                  className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm text-gray-900 placeholder-gray-500"
+                  className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm text-gray-900"
                   value={filters.condition}
                   onChange={(e) => handleFilterChange('condition', e.target.value)}
                 >
@@ -220,7 +236,7 @@ export default function Books() {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Location</label>
                 <input
                   type="text"
-                  placeholder="City, state, country..."
+                  placeholder="City, state..."
                   className="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm text-gray-900 placeholder-gray-500"
                   value={filters.location}
                   onChange={(e) => handleFilterChange('location', e.target.value)}
@@ -260,23 +276,26 @@ export default function Books() {
                   <option value="createdAt-asc">Oldest First</option>
                   <option value="title-asc">Title A-Z</option>
                   <option value="title-desc">Title Z-A</option>
-                  <option value="views-desc">Most Popular</option>
-                  <option value="ownerId.rating-desc">Highest Rated</option>
+                  <option value="rating-desc">Highest Rated</option>
+                  <option value="rating-asc">Lowest Rated</option>
                 </select>
               </div>
 
-              {/* Clear Filters Button */}
+              {/* Clear Filters */}
               <button
-                onClick={() => setFilters({
-                  search: '',
-                  genre: '',
-                  condition: '',
-                  location: '',
-                  sortBy: 'createdAt',
-                  sortOrder: 'desc',
-                  minRating: 0,
-                  maxDistance: 50
-                })}
+                onClick={() => {
+                  setFilters({
+                    search: '',
+                    genre: '',
+                    condition: '',
+                    location: '',
+                    sortBy: 'createdAt',
+                    sortOrder: 'desc',
+                    minRating: 0,
+                    maxDistance: 50
+                  });
+                  setPagination(prev => ({ ...prev, currentPage: 1 }));
+                }}
                 className="w-full group px-6 py-3 text-sm font-semibold text-gray-600 hover:text-white border border-gray-300 hover:border-transparent rounded-xl hover:bg-gradient-to-r hover:from-red-500 hover:to-pink-500 transition-all duration-300 backdrop-blur-sm"
               >
                 <span className="flex items-center justify-center space-x-2">
@@ -303,6 +322,30 @@ export default function Books() {
               <p className="mt-6 text-gray-600 text-lg font-medium">Loading amazing books...</p>
             </div>
           </div>
+        ) : books.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="text-6xl mb-4">📚</div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">No books found</h2>
+            <p className="text-gray-600 mb-4">Try adjusting your filters or search terms</p>
+            <button
+              onClick={() => {
+                setFilters({
+                  search: '',
+                  genre: '',
+                  condition: '',
+                  location: '',
+                  sortBy: 'createdAt',
+                  sortOrder: 'desc',
+                  minRating: 0,
+                  maxDistance: 50
+                });
+                setPagination(prev => ({ ...prev, currentPage: 1 }));
+              }}
+              className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            >
+              Clear Filters
+            </button>
+          </div>
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12">
@@ -327,32 +370,18 @@ export default function Books() {
                         {book.condition}
                       </span>
                     </div>
-                    <p className="text-xs sm:text-sm text-gray-500 mb-4 line-clamp-2 leading-relaxed">{book.description}</p>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-                      <div className="flex items-center space-x-2 sm:space-x-3">
-                        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-r from-indigo-400 to-purple-400 rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs sm:text-sm">👤</span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-xs sm:text-sm font-semibold text-gray-700">{book.ownerId.name}</span>
-                          {book.ownerId.rating > 0 && (
-                            <div className="flex items-center space-x-1">
-                              <span className="text-xs text-yellow-500">⭐</span>
-                              <span className="text-xs text-gray-500 font-medium">{book.ownerId.rating.toFixed(1)}</span>
-                            </div>
-                          )}
-                        </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1 text-yellow-500">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                        <span className="text-xs sm:text-sm font-medium text-gray-700">{book.ownerId?.rating || 0}</span>
                       </div>
                       <button
                         onClick={() => requestBook(book._id)}
-                        className="group/btn bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl w-full sm:w-auto"
+                        className="px-3 sm:px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs sm:text-sm font-medium rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 shadow-md hover:shadow-lg"
                       >
-                        <span className="flex items-center justify-center space-x-1">
-                          <span>Request</span>
-                          <svg className="w-3 h-3 group-hover/btn:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                          </svg>
-                        </span>
+                        Request
                       </button>
                     </div>
                   </div>
@@ -360,54 +389,25 @@ export default function Books() {
               ))}
             </div>
 
-            {/* Pagination Info */}
-            <div className="text-center text-gray-600 mb-4">
-              <p>Showing {books.length} of {pagination.totalBooks || books.length} books</p>
-            </div>
-
             {/* Pagination */}
             {pagination.totalPages > 1 && (
-              <div className="flex justify-center items-center space-x-2 sm:space-x-3">
+              <div className="flex justify-center items-center gap-2 sm:gap-4">
                 <button
                   onClick={() => handlePageChange(pagination.currentPage - 1)}
                   disabled={!pagination.hasPrev}
-                  className="group px-3 sm:px-4 py-2 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl text-xs sm:text-sm font-semibold text-gray-700 hover:bg-indigo-50 hover:border-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                  className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  <span className="flex items-center space-x-1 sm:space-x-2">
-                    <svg className="w-4 h-4 group-hover:-translate-x-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                    <span className="hidden sm:inline">Previous</span>
-                    <span className="sm:hidden">Prev</span>
-                  </span>
+                  Previous
                 </button>
-                
-                {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map(page => (
-                  <button
-                    key={page}
-                    onClick={() => handlePageChange(page)}
-                    className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 ${
-                      page === pagination.currentPage
-                        ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg scale-105'
-                        : 'bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-700 hover:bg-indigo-50 hover:border-indigo-300 hover:scale-105'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                
+                <span className="text-gray-700 font-medium">
+                  Page {pagination.currentPage} of {pagination.totalPages}
+                </span>
                 <button
                   onClick={() => handlePageChange(pagination.currentPage + 1)}
                   disabled={!pagination.hasNext}
-                  className="group px-3 sm:px-4 py-2 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl text-xs sm:text-sm font-semibold text-gray-700 hover:bg-indigo-50 hover:border-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                  className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  <span className="flex items-center space-x-1 sm:space-x-2">
-                    <span className="hidden sm:inline">Next</span>
-                    <span className="sm:hidden">Next</span>
-                    <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </span>
+                  Next
                 </button>
               </div>
             )}
