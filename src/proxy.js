@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 
-export function middleware(request) {
+export function proxy(request) {
   const { pathname } = request.nextUrl;
 
-  
   const publicRoutes = [
     '/',
     '/login',
@@ -13,18 +12,14 @@ export function middleware(request) {
     '/api/auth/register'
   ];
 
-  
   const isPublicRoute = publicRoutes.some(route => 
     pathname === route || pathname.startsWith('/api/auth/')
   );
 
-  
   if (isPublicRoute) {
     return NextResponse.next();
   }
 
-  
-  
   return NextResponse.next();
 }
 

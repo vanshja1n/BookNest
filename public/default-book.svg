@@ -1,0 +1,8 @@
+<svg width="200" height="300" xmlns="http://www.w3.org/2000/svg">
+  <rect width="200" height="300" fill="#f3f4f6" rx="8"/>
+  <rect x="40" y="60" width="120" height="160" fill="#e5e7eb" rx="4"/>
+  <rect x="55" y="80" width="90" height="8" fill="#d1d5db" rx="2"/>
+  <rect x="65" y="100" width="70" height="6" fill="#d1d5db" rx="2"/>
+  <rect x="55" y="130" width="90" height="60" fill="#d1d5db" rx="2"/>
+  <text x="100" y="260" text-anchor="middle" font-size="14" fill="#9ca3af" font-family="sans-serif">No Cover</text>
+</svg>

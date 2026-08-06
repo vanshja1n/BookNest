@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import SafeImage from '@/components/SafeImage';
 import Navbar from '@/components/Navbar';
 
 export default function Leaderboard() {
@@ -13,7 +14,7 @@ export default function Leaderboard() {
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(true);
   const [activeTab, setActiveTab] = useState('points');
   const [totalUsers, setTotalUsers] = useState(0);
-
+  
   const tabs = [
     { value: 'points', label: 'Points', icon: '🏆' },
     { value: 'exchanges', label: 'Exchanges', icon: '📚' },
@@ -180,16 +181,15 @@ export default function Leaderboard() {
                     </div>
                     
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                        {user.profilePicture ? (
-                          <img
-                            src={user.profilePicture}
-                            alt={user.name}
-                            className="w-10 h-10 rounded-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-gray-500">👤</span>
-                        )}
+                      <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden">
+                        <SafeImage
+                          src={user.profilePicture}
+                          alt={user.name}
+                          width={40}
+                          height={40}
+                          className="w-10 h-10 rounded-full object-cover"
+                          type="profile"
+                        />
                       </div>
                       
                       <div>

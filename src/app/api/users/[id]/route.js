@@ -68,7 +68,8 @@ export async function GET(request, { params }) {
       );
     }
 
-    const profileUserId = params.id;
+    const { id } = params;
+    const profileUserId = id;
 
     // Validate profile user ID
     if (!mongoose.Types.ObjectId.isValid(profileUserId)) {
@@ -113,33 +114,42 @@ export async function GET(request, { params }) {
 
     console.log('User Profile API - User:', user.name, 'Books:', books.length);
 
+    const sanitizedProfilePicture = (user.profilePicture && typeof user.profilePicture === 'string' && user.profilePicture.trim() !== '')
+      ? user.profilePicture
+      : null;
+
     return NextResponse.json({ 
       success: true,
       user: {
         _id: user._id,
         name: user.name,
         email: user.email,
-        profilePicture: user.profilePicture,
+        profilePicture: sanitizedProfilePicture,
         bio: user.bio,
         location: user.location,
         rating: user.rating || 0,
         exchangesCompleted: user.exchangesCompleted || 0,
         createdAt: user.createdAt
       },
-      books: books.map(book => ({
-        _id: book._id,
-        title: book.title,
-        author: book.author,
-        coverImage: book.coverImage,
-        genre: book.genre,
-        condition: book.condition,
-        description: book.description,
-        isbn: book.isbn,
-        publishedYear: book.publishedYear,
-        language: book.language,
-        pageCount: book.pageCount,
-        tags: book.tags
-      }))
+      books: books.map(book => {
+        const sanitizedCoverImage = (book.coverImage && typeof book.coverImage === 'string' && book.coverImage.trim() !== '')
+          ? book.coverImage
+          : null;
+        return {
+          _id: book._id,
+          title: book.title,
+          author: book.author,
+          coverImage: sanitizedCoverImage,
+          genre: book.genre,
+          condition: book.condition,
+          description: book.description,
+          isbn: book.isbn,
+          publishedYear: book.publishedYear,
+          language: book.language,
+          pageCount: book.pageCount,
+          tags: book.tags
+        };
+      })
     });
 
   } catch (error) {

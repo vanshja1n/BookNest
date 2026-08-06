@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Navbar from '@/components/Navbar';
 import Link from 'next/link';
+import SafeImage from '@/components/SafeImage';
 import { useAuth } from '@/hooks/useAuth';
 import { useSession } from 'next-auth/react';
 import toast from 'react-hot-toast';
@@ -325,11 +326,14 @@ export default function MyBooks() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {books.map((book) => (
               <div key={book._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-                <div className="relative">
-                  <img
+                <div className="relative h-48">
+                  <SafeImage
                     src={book.coverImage}
                     alt={book.title}
-                    className="w-full h-48 object-cover"
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    className="object-cover"
+                    type="book"
                   />
                   <div className="absolute top-2 right-2 flex gap-2">
                     <button

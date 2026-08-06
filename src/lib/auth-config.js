@@ -26,7 +26,7 @@ export const authOptions = {
               await User.findByIdAndUpdate(existingUser._id, {
                 isGoogleUser: true,
                 googleId: account.providerAccountId, // Store Google OAuth ID separately
-                profilePicture: user.image,
+                profilePicture: user.image || existingUser.profilePicture || '',
               });
             }
             // CRITICAL: user.id must be MongoDB User._id (ObjectId), not Google OAuth ID
@@ -36,7 +36,7 @@ export const authOptions = {
             const newUser = new User({
               name: user.name,
               email: user.email,
-              profilePicture: user.image,
+              profilePicture: user.image || '',
               isGoogleUser: true,
               googleId: account.providerAccountId, // Store Google OAuth ID separately
               location: '',

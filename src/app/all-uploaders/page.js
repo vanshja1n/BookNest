@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Navbar from '@/components/Navbar';
 import Link from 'next/link';
+import SafeImage from '@/components/SafeImage';
 import toast from 'react-hot-toast';
 
 export default function AllUploadersPage() {
@@ -158,18 +159,15 @@ export default function AllUploadersPage() {
             >
               <div className="relative overflow-hidden">
                 {/* Profile Picture as Header Image */}
-                <div className="w-full h-48 sm:h-56 bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center relative">
-                  {user.profilePicture ? (
-                    <img
-                      src={user.profilePicture}
-                      alt={user.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                    />
-                  ) : (
-                    <div className="w-32 h-32 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white text-4xl font-bold">
-                      {user.name?.charAt(0)?.toUpperCase() || 'U'}
-                    </div>
-                  )}
+                <div className="relative w-full h-48 sm:h-56 bg-gradient-to-br from-indigo-100 to-purple-100">
+                  <SafeImage
+                    src={user.profilePicture}
+                    alt={user.name}
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    className="object-cover group-hover:scale-110 transition-transform duration-300"
+                    type="profile"
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 </div>
               </div>

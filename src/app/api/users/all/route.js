@@ -67,11 +67,15 @@ export async function GET(request) {
           }
         }
         
+        const finalProfilePicture = (user.profilePicture && typeof user.profilePicture === 'string' && user.profilePicture.trim() !== '') 
+          ? user.profilePicture 
+          : null;
+
         return {
           _id: user._id,
           name: user.name,
           email: user.email,
-          profilePicture: user.profilePicture,
+          profilePicture: finalProfilePicture,
           bio: user.bio,
           location: user.location,
           rating: user.rating || 0,

@@ -63,8 +63,8 @@ async function connectDB() {
   return cached.conn;
 }
 
-// Graceful shutdown handler
-if (typeof process !== 'undefined') {
+// Graceful shutdown handler - disabled in serverless Vercel environment
+if (typeof process !== 'undefined' && !process.env.VERCEL) {
   process.on('SIGINT', async () => {
     await mongoose.connection.close();
     console.log('MongoDB connection closed through app termination');

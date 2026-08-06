@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Navbar from '@/components/Navbar';
 import Link from 'next/link';
+import SafeImage from '@/components/SafeImage';
 import { useSession } from 'next-auth/react';
 import toast from 'react-hot-toast';
 
@@ -351,11 +352,14 @@ export default function Books() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12">
               {books.map((book) => (
                 <div key={book._id} className="group bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 border border-white/20 overflow-hidden">
-                  <div className="relative overflow-hidden">
-                    <img 
+                  <div className="relative overflow-hidden h-48 sm:h-56">
+                    <SafeImage 
                       src={book.coverImage} 
                       alt={book.title}
-                      className="w-full h-48 sm:h-56 object-cover group-hover:scale-110 transition-transform duration-300"
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      className="object-cover group-hover:scale-110 transition-transform duration-300"
+                      type="book"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   </div>

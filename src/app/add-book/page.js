@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import SafeImage from '@/components/SafeImage';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useAuth } from '@/hooks/useAuth';
@@ -302,13 +303,12 @@ export default function AddBook() {
               {/* Current Image Preview */}
               {formData.coverImage && (
                 <div className="mb-3">
-                  <img 
+                  <SafeImage 
                     src={formData.coverImage} 
                     alt="Book cover preview"
+                    width={128}
+                    height={192}
                     className="w-32 h-48 object-cover rounded border"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
                   />
                 </div>
               )}

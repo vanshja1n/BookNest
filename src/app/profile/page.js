@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import SafeImage from '@/components/SafeImage';
 import { useSession } from 'next-auth/react';
 import { useAuth } from '@/hooks/useAuth';
 import toast from 'react-hot-toast';
@@ -279,18 +280,15 @@ export default function ProfilePage() {
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
             {/* Profile Picture */}
             <div className="flex items-center space-x-6">
-              <div className="flex-shrink-0">
-                {formData.profilePicture ? (
-                  <img
-                    className="h-20 w-20 rounded-full object-cover"
-                    src={formData.profilePicture}
-                    alt="Profile"
-                  />
-                ) : (
-                  <div className="h-20 w-20 rounded-full bg-gray-200 flex items-center justify-center">
-                    <span className="text-2xl text-gray-400">👤</span>
-                  </div>
-                )}
+              <div className="flex-shrink-0 relative h-20 w-20 rounded-full overflow-hidden">
+                <SafeImage
+                  className="object-cover"
+                  src={formData.profilePicture}
+                  alt="Profile"
+                  fill
+                  sizes="80px"
+                  type="profile"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">

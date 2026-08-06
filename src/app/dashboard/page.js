@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Navbar from '@/components/Navbar';
 import Link from 'next/link';
+import SafeImage from '@/components/SafeImage';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function Dashboard() {
@@ -245,11 +246,14 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                   {books.map((book) => (
                     <div key={book._id} className="group bg-white/50 backdrop-blur-sm rounded-2xl p-3 sm:p-4 hover:bg-white/70 transition-all duration-300 hover:scale-105 border border-white/20">
-                      <div className="relative overflow-hidden rounded-xl mb-3">
-                        <img 
+                      <div className="relative overflow-hidden rounded-xl mb-3 h-32 sm:h-40">
+                        <SafeImage 
                           src={book.coverImage} 
                           alt={book.title}
-                          className="w-full h-32 sm:h-40 object-cover group-hover:scale-110 transition-transform duration-300"
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                          className="object-cover group-hover:scale-110 transition-transform duration-300"
+                          type="book"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                       </div>
@@ -283,16 +287,15 @@ export default function Dashboard() {
                   <h3 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Your Profile</h3>
                 </div>
                 <div className="text-center">
-                  <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg overflow-hidden">
-                    {user.profilePicture ? (
-                      <img 
-                        src={user.profilePicture} 
-                        alt={user.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-2xl sm:text-3xl">👤</span>
-                    )}
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg overflow-hidden relative">
+                    <SafeImage 
+                      src={user.profilePicture} 
+                      alt={user.name}
+                      fill
+                      sizes="96px"
+                      className="object-cover"
+                      type="profile"
+                    />
                   </div>
                   <h4 className="font-semibold text-gray-900 text-base sm:text-lg mb-1">{user.name}</h4>
                   <p className="text-xs sm:text-sm text-gray-600 mb-4">{user.location}</p>

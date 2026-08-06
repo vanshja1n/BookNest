@@ -18,6 +18,10 @@ export async function GET(request) {
         );
       }
 
+      const finalProfilePicture = (user.profilePicture && typeof user.profilePicture === 'string' && user.profilePicture.trim() !== '') 
+        ? user.profilePicture 
+        : null;
+
       return NextResponse.json({
         user: {
           id: user._id,
@@ -25,7 +29,7 @@ export async function GET(request) {
           email: user.email,
           location: user.location,
           bio: user.bio,
-          profilePicture: user.profilePicture,
+          profilePicture: finalProfilePicture,
           rating: user.rating,
           totalExchanges: user.totalExchanges,
           points: user.points || 0,
@@ -64,6 +68,10 @@ export async function GET(request) {
       );
     }
 
+    const finalProfilePictureJWT = (user.profilePicture && typeof user.profilePicture === 'string' && user.profilePicture.trim() !== '') 
+      ? user.profilePicture 
+      : null;
+
     return NextResponse.json({
       user: {
         id: user._id,
@@ -71,7 +79,7 @@ export async function GET(request) {
         email: user.email,
         location: user.location,
         bio: user.bio,
-        profilePicture: user.profilePicture,
+        profilePicture: finalProfilePictureJWT,
         rating: user.rating,
         totalExchanges: user.totalExchanges,
         points: user.points || 0,
@@ -153,6 +161,10 @@ export async function PUT(request) {
       );
     }
 
+    const finalProfilePicture = (user.profilePicture && typeof user.profilePicture === 'string' && user.profilePicture.trim() !== '') 
+      ? user.profilePicture 
+      : null;
+
     return NextResponse.json({ 
       message: 'Profile updated successfully',
       user: {
@@ -161,7 +173,7 @@ export async function PUT(request) {
         email: user.email,
         location: user.location,
         bio: user.bio,
-        profilePicture: user.profilePicture,
+        profilePicture: finalProfilePicture,
         rating: user.rating,
         totalExchanges: user.totalExchanges,
         isVerified: user.isVerified,

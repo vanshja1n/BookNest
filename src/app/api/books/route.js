@@ -86,8 +86,21 @@ export async function GET(request) {
     console.log('Found books:', books.length);
     console.log('Total books:', total);
 
+    const sanitizedBooks = books.map(book => {
+      const bookObj = book.toObject ? book.toObject() : book;
+      if (!bookObj.coverImage || typeof bookObj.coverImage !== 'string' || bookObj.coverImage.trim() === '') {
+        bookObj.coverImage = null;
+      }
+      if (bookObj.ownerId) {
+        if (!bookObj.ownerId.profilePicture || typeof bookObj.ownerId.profilePicture !== 'string' || bookObj.ownerId.profilePicture.trim() === '') {
+          bookObj.ownerId.profilePicture = null;
+        }
+      }
+      return bookObj;
+    });
+
     return NextResponse.json({
-      books,
+      books: sanitizedBooks,
       pagination: {
         currentPage: page,
         totalPages: Math.ceil(total / limit),
@@ -180,7 +193,7 @@ export async function POST(request) {
       tags
     } = await request.json();
     
-    if (!title || !author || !genre || !condition || !coverImage || !description) {
+    if (!title || !author || !genre || !condition || !coverImage || typeof coverImage !== 'string' || coverImage.trim() === '' || !description) {
       return NextResponse.json(
         { error: 'Title, author, genre, condition, cover image, and description are required' },
         { status: 400 }

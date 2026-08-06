@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Navbar from '@/components/Navbar';
 import Link from 'next/link';
+import SafeImage from '@/components/SafeImage';
 import { useChatSocket } from '@/hooks/useSocket';
 import { useAuth } from '@/hooks/useAuth';
 import toast from 'react-hot-toast';
@@ -440,11 +441,14 @@ export default function ChatPage() {
         {/* Exchange Info */}
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200 p-6 mb-6">
           <div className="flex items-center space-x-6">
-            <div className="relative">
-              <img 
+            <div className="relative w-20 h-24">
+              <SafeImage 
                 src={exchange.bookId.coverImage} 
                 alt={exchange.bookId.title}
-                className="w-20 h-24 object-cover rounded-xl shadow-md"
+                fill
+                sizes="80px"
+                className="object-cover rounded-xl shadow-md"
+                type="book"
               />
               <div className="absolute -top-2 -right-2 w-6 h-6 bg-indigo-500 rounded-full flex items-center justify-center">
                 <span className="text-white text-xs font-bold">📚</span>
@@ -522,13 +526,16 @@ export default function ChatPage() {
                         }`}
                       >
                         {message.messageType === 'image' && message.imageUrl ? (
-                          <div>
-                            <img 
-                              src={message.imageUrl} 
-                              alt="Shared image" 
-                              className="max-w-full h-auto rounded-lg mb-2 shadow-sm"
-                              style={{ maxHeight: '300px' }}
-                            />
+                          <div className="flex flex-col">
+                            <div className="relative w-48 h-48 sm:w-64 sm:h-64 mb-2">
+                              <SafeImage 
+                                src={message.imageUrl} 
+                                alt="Shared image" 
+                                fill
+                                sizes="(max-width: 640px) 150px, 250px"
+                                className="rounded-lg shadow-sm object-cover"
+                              />
+                            </div>
                             {message.content && (
                               <p className="text-sm leading-relaxed">{message.content}</p>
                             )}
@@ -554,15 +561,17 @@ export default function ChatPage() {
           {/* Image Preview */}
           {imagePreview && (
             <div className="border-t border-gray-200 p-4 bg-white/50">
-              <div className="relative inline-block">
-                <img
+              <div className="relative w-32 h-32">
+                <SafeImage
                   src={imagePreview}
                   alt="Preview"
-                  className="max-w-xs max-h-48 rounded-lg shadow-sm"
+                  fill
+                  sizes="128px"
+                  className="rounded-lg shadow-sm object-cover"
                 />
                 <button
                   onClick={removeImagePreview}
-                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors duration-200"
+                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors duration-200 z-10"
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

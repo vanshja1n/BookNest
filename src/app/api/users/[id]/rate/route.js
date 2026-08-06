@@ -11,7 +11,7 @@ export async function POST(request, { params }) {
   try {
     await connectDB();
 
-    const { id } = await params;
+    const { id } = params;
     const { rating, review } = await request.json();
 
     let raterId;
@@ -134,7 +134,7 @@ export async function GET(request, { params }) {
   try {
     await connectDB();
 
-    const { id } = await params;
+    const { id } = params;
 
     let userId;
 

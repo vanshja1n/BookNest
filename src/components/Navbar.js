@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import SafeImage from '@/components/SafeImage';
 import { useAuth } from '@/hooks/useAuth';
 import { useSession } from 'next-auth/react';
 import { useState } from 'react';
@@ -114,16 +115,15 @@ export default function Navbar() {
           {/* User Profile & Logout - Desktop */}
           <div className="hidden lg:flex items-center space-x-3">
             <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-indigo-400 to-purple-500 rounded-full flex items-center justify-center overflow-hidden">
-                {(currentUser.image || currentUser.profilePicture) ? (
-                  <img 
-                    src={currentUser.image || currentUser.profilePicture} 
-                    alt={currentUser.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="text-sm">👤</span>
-                )}
+              <div className="w-8 h-8 bg-gradient-to-r from-indigo-400 to-purple-500 rounded-full flex items-center justify-center overflow-hidden relative">
+                <SafeImage 
+                  src={currentUser.image || currentUser.profilePicture} 
+                  alt={currentUser.name}
+                  fill
+                  sizes="32px"
+                  className="object-cover"
+                  type="profile"
+                />
               </div>
               <span className="text-sm text-gray-700">Welcome, {currentUser.name}</span>
             </div>
@@ -219,16 +219,15 @@ export default function Navbar() {
               {/* Mobile User Profile & Logout */}
               <div className="border-t border-gray-200 pt-3 mt-3">
                 <div className="flex items-center space-x-3 px-3 py-2 mb-3">
-                  <div className="w-10 h-10 bg-gradient-to-r from-indigo-400 to-purple-500 rounded-full flex items-center justify-center overflow-hidden">
-                    {(currentUser.image || currentUser.profilePicture) ? (
-                      <img 
-                        src={currentUser.image || currentUser.profilePicture} 
-                        alt={currentUser.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-lg">👤</span>
-                    )}
+                  <div className="w-10 h-10 bg-gradient-to-r from-indigo-400 to-purple-500 rounded-full flex items-center justify-center overflow-hidden relative">
+                    <SafeImage 
+                      src={currentUser.image || currentUser.profilePicture} 
+                      alt={currentUser.name}
+                      fill
+                      sizes="40px"
+                      className="object-cover"
+                      type="profile"
+                    />
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-900">Welcome, {currentUser.name}</p>
